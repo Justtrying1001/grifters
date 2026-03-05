@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   await prisma.personProject.deleteMany();
   await prisma.person.deleteMany();
   await prisma.project.deleteMany();
-  await prisma.user.deleteMany();
+  // Users are kept intentionally so admin access remains intact
 
   return NextResponse.json({ ok: true, message: "Database cleared" });
 }
