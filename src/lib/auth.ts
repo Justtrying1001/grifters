@@ -35,24 +35,30 @@ export const authOptions: NextAuthOptions = {
         const candidates = getIdentifierCandidates(credentials.identifier);
         if (candidates.length === 0) return null;
 
-        const user = await prisma.user.findFirst({
+        const users = await prisma.user.findMany({
           where: {
             OR: candidates.map((value) => ({
               email: { equals: value, mode: "insensitive" as const },
             })),
+            role: "ADMIN",
           },
         });
 
-        if (!user || user.role !== "ADMIN") return null;
+        for (const candidate of candidates) {
+          const user = users.find((existingUser) => existingUser.email.toLowerCase() === candidate.toLowerCase());
+          if (!user) continue;
 
-        const valid = await bcrypt.compare(credentials.password, user.password);
-        if (!valid) return null;
+          const valid = await bcrypt.compare(credentials.password, user.password);
+          if (!valid) continue;
 
-        return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-        };
+          return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+          };
+        }
+
+        return null;
       },
     }),
   ],
