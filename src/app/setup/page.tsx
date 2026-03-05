@@ -9,7 +9,7 @@ function SetupContent() {
   const secret = params.get("secret") ?? "";
 
   const [resetStatus, setResetStatus] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState("admin@grifters.io");
+  const [adminEmail, setAdminEmail] = useState("admin@grifter.io");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminStatus, setAdminStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<"reset" | "admin" | null>(null);
