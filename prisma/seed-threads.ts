@@ -15,13 +15,14 @@ type RawThread = {
 const prisma = new PrismaClient();
 
 // X/Twitter snowflake epoch (same numeric epoch as Discord, but this is Twitter data).
-const TWITTER_EPOCH_MS = 1288834974657n;
+const TWITTER_EPOCH_MS = BigInt("1288834974657");
+const SNOWFLAKE_SHIFT_BITS = BigInt(22);
 
 function timestampFromSnowflake(id: string): Date | null {
   if (!/^\d+$/.test(id)) return null;
 
   const snowflake = BigInt(id);
-  const timestampMs = Number((snowflake >> 22n) + TWITTER_EPOCH_MS);
+  const timestampMs = Number((snowflake >> SNOWFLAKE_SHIFT_BITS) + TWITTER_EPOCH_MS);
   const date = new Date(timestampMs);
 
   return Number.isNaN(date.getTime()) ? null : date;
