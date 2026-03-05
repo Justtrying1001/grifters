@@ -35,20 +35,7 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Admin setup (local/dev)
+## Admin security note
 
-1. Configure DB and run:
-
-```bash
-npm run db:push
-npm run db:seed
-```
-
-2. Go to `/setup` to create or reset an admin password.
-   - In local/dev, if `SETUP_SECRET` is not set, setup endpoints are allowed.
-   - In production, set `SETUP_SECRET` and `ENABLE_SETUP=true`.
-
-3. Login at `/admin/login` with:
-   - identifier: `admin` (or full email)
-   - password: the one you seeded/set up
-
+The runtime `/setup` and related setup APIs are disabled to reduce attack surface.
+Create/manage admin users through seeded data or direct database/admin tooling only.

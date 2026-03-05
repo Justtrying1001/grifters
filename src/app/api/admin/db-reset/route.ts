@@ -1,25 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSetupAuthFailureReason } from "@/lib/setup-auth";
+import { NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
-  const setupFailureReason = getSetupAuthFailureReason(req);
-  if (setupFailureReason) {
-    return NextResponse.json({ error: setupFailureReason }, { status: 401 });
-  }
-
-  await prisma.adminAuditLog.deleteMany();
-  await prisma.rateLimit.deleteMany();
-  await prisma.response.deleteMany();
-  await prisma.dispute.deleteMany();
-  await prisma.source.deleteMany();
-  await prisma.incidentPerson.deleteMany();
-  await prisma.incidentProject.deleteMany();
-  await prisma.incident.deleteMany();
-  await prisma.personProject.deleteMany();
-  await prisma.person.deleteMany();
-  await prisma.project.deleteMany();
-  // Users are kept intentionally so admin access remains intact
-
-  return NextResponse.json({ ok: true, message: "Database cleared" });
+export async function POST() {
+  return NextResponse.json(
+    { error: "Runtime setup/reset is disabled" },
+    { status: 410 },
+  );
 }
