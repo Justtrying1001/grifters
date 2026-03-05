@@ -38,7 +38,7 @@ function SetupContent() {
     <div className="space-y-8">
       <section className="bg-zinc-800 rounded-lg p-6">
         <h2 className="text-lg font-bold mb-2 text-amber-400">Accès Setup sécurisé</h2>
-        <p className="text-sm text-zinc-400 mb-4">Le secret setup est requis et transmis uniquement en header (jamais dans l’URL). En production, active explicitement <code>ENABLE_SETUP=true</code>.</p>
+        <p className="text-sm text-zinc-400 mb-4">Le secret setup est transmis uniquement en header (jamais dans l’URL). En local/dev, si <code>SETUP_SECRET</code> n&apos;est pas défini, l&apos;accès setup est autorisé pour faciliter l&apos;initialisation. En production, configure <code>SETUP_SECRET</code> et active explicitement <code>ENABLE_SETUP=true</code>.</p>
         <input
           type="password"
           value={setupSecret}
