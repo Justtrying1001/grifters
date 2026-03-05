@@ -3,19 +3,55 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
+function getIdentifierCandidates(rawIdentifier: string) {
+  const normalized = rawIdentifier.trim().toLowerCase();
+  const candidates = new Set<string>([normalized]);
+
+  if (normalized.includes("@")) {
+    const localPart = normalized.split("@")[0];
+    if (localPart) {
+      candidates.add(localPart);
+      candidates.add(`${localPart}@admin.local`);
+    }
+
+    candidates.add(normalized.replace("@grifters.io", "@grifter.io"));
+    candidates.add(normalized.replace("@grifter.io", "@grifters.io"));
+  } else {
+    candidates.add(`${normalized}@admin.local`);
+    candidates.add(`${normalized}@grifter.io`);
+    candidates.add(`${normalized}@grifters.io`);
+  }
+
+  return { normalized, candidates: Array.from(candidates) };
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        identifier: { label: "Identifiant", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.identifier || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+        const { normalized, candidates } = getIdentifierCandidates(credentials.identifier);
+
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              ...candidates.map((value) => ({
+                email: { equals: value, mode: "insensitive" as const },
+              })),
+              {
+                email: {
+                  startsWith: `${normalized}@`,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          },
         });
 
         if (!user || user.role !== "ADMIN") return null;
