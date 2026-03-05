@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RiskLabel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentType {
+  SCAM
+  RUG_PULL
+  PUMP_AND_DUMP
+  MISLEADING_PROMOTION
+  INSIDER_DUMP
+  EXIT_SCAM
+  OTHER
+}
+
+enum IncidentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum ResponseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DisputeStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum EntityType {
+  PERSON
+  PROJECT
+  INCIDENT
+}
+
+enum UserRole {
+  ADMIN
+}
+
+model User {
+  id        String          @id @default(cuid())
+  email     String          @unique
+  password  String
+  role      UserRole        @default(ADMIN)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  auditLogs AdminAuditLog[]
+
+  @@map("users")
+}
+
+model Person {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  aliases     String[]
+  roles       String[]
+  socials     Json      @default("{}")
+  description String?   @db.Text
+  riskScore   Float     @default(0)
+  riskLabel   RiskLabel @default(LOW)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  incidents IncidentPerson[]
+  projects  PersonProject[]
+
+  @@map("people")
+}
+
+model Project {
+  id                String    @id @default(cuid())
+  slug              String    @unique
+  name              String
+  chain             String?
+  category          String?
+  links             Json      @default("{}")
+  contractAddresses String[]
+  description       String?   @db.Text
+  riskScore         Float     @default(0)
+  riskLabel         RiskLabel @default(LOW)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  incidents IncidentProject[]
+  people    PersonProject[]
+
+  @@map("projects")
+}
+
+model PersonProject {
+  person    Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  @@id([personId, projectId])
+  @@map("person_projects")
+}
+
+model Incident {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  type            IncidentType
+  date            DateTime
+  summary         String         @db.VarChar(250)
+  narrative       String         @db.Text
+  status          IncidentStatus @default(PENDING)
+  rejectionReason String?        @db.Text
+  submitterEmail  String?
+  submitterIp     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  sources   Source[]
+  people    IncidentPerson[]
+  projects  IncidentProject[]
+  responses Response[]
+
+  @@map("incidents")
+}
+
+model IncidentPerson {
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  incidentId String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId   String
+
+  @@id([incidentId, personId])
+  @@map("incident_people")
+}
+
+model IncidentProject {
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  incidentId String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId  String
+
+  @@id([incidentId, projectId])
+  @@map("incident_projects")
+}
+
+model Source {
+  id         String   @id @default(cuid())
+  url        String
+  title      String
+  excerpt    String?  @db.Text
+  archiveUrl String?
+  addedBy    String?
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@map("sources")
+}
+
+model Response {
+  id             String         @id @default(cuid())
+  content        String         @db.Text
+  status         ResponseStatus @default(PENDING)
+  entityType     EntityType
+  entityId       String
+  submitterEmail String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  incidentId String?
+  incident   Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@map("responses")
+}
+
+model Dispute {
+  id             String        @id @default(cuid())
+  targetUrl      String
+  reason         String        @db.Text
+  evidenceUrls   String[]
+  submitterEmail String?
+  status         DisputeStatus @default(PENDING)
+  resolvedNote   String?       @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("disputes")
+}
+
+model AdminAuditLog {
+  id         String     @id @default(cuid())
+  adminId    String
+  admin      User       @relation(fields: [adminId], references: [id])
+  action     String
+  entityType EntityType
+  entityId   String
+  metadata   Json       @default("{}")
+  createdAt  DateTime   @default(now())
+
+  @@map("admin_audit_logs")
+}
+
+model RateLimit {
+  id        String   @id @default(cuid())
+  ip        String
+  action    String
+  count     Int      @default(1)
+  windowEnd DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([ip, action, windowEnd])
+  @@map("rate_limits")
+}
