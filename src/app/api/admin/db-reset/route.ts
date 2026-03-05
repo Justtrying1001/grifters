@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Protected by RESET_SECRET env var — call with ?secret=<RESET_SECRET>
+// Protected by SETUP_SECRET env var — call with ?secret=<SETUP_SECRET>
 export async function POST(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  if (!process.env.RESET_SECRET || secret !== process.env.RESET_SECRET) {
+  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
