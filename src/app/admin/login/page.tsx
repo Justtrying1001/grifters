@@ -7,7 +7,7 @@ import { Shield, AlertCircle } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -18,13 +18,13 @@ export default function AdminLoginPage() {
     setError("");
 
     const result = await signIn("credentials", {
-      email: email.trim().toLowerCase(),
+      identifier: identifier.trim().toLowerCase(),
       password,
       redirect: false,
     });
 
     if (result?.error) {
-      setError("Invalid email or password.");
+      setError("Identifiant ou mot de passe invalide.");
       setLoading(false);
     } else {
       router.push("/admin");
@@ -43,13 +43,13 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xl p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Email</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Identifiant</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="w-full border border-zinc-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
             />
           </div>

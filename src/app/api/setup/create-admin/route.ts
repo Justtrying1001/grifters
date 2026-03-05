@@ -2,24 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+function toStoredAdminEmail(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.includes("@") ? normalized : `${normalized}@admin.local`;
+}
+
 export async function POST(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { email, password } = await req.json();
-  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const { identifier, email, password } = await req.json();
+  const inputIdentifier = typeof identifier === "string" && identifier.trim()
+    ? identifier
+    : typeof email === "string"
+      ? email
+      : "";
 
-  if (!normalizedEmail || !password || password.length < 8) {
-    return NextResponse.json({ error: "Email et mot de passe requis (min 8 caractères)" }, { status: 400 });
+  const storedEmail = toStoredAdminEmail(inputIdentifier);
+
+  if (!storedEmail || !password || password.length < 8) {
+    return NextResponse.json({ error: "Identifiant et mot de passe requis (min 8 caractères)" }, { status: 400 });
   }
 
   const hashed = await bcrypt.hash(password, 12);
   await prisma.user.upsert({
-    where: { email: normalizedEmail },
+    where: { email: storedEmail },
     update: { password: hashed },
-    create: { email: normalizedEmail, password: hashed, role: "ADMIN" },
+    create: { email: storedEmail, password: hashed, role: "ADMIN" },
   });
 
   return NextResponse.json({ ok: true });
