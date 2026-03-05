@@ -18,10 +18,11 @@ export async function resetDb() {
 }
 
 export async function createAdmin(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   const hashed = await bcrypt.hash(password, 12);
   await prisma.user.upsert({
-    where: { email },
+    where: { email: normalizedEmail },
     update: { password: hashed },
-    create: { email, password: hashed, role: "ADMIN" },
+    create: { email: normalizedEmail, password: hashed, role: "ADMIN" },
   });
 }
