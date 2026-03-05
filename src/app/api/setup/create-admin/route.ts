@@ -9,6 +9,12 @@ function toStoredAdminEmail(identifier: string) {
   return normalized.includes("@") ? normalized : `${normalized}@admin.local`;
 }
 
+function toStoredAdminEmail(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.includes("@") ? normalized : `${normalized}@admin.local`;
+}
+
 export async function POST(req: NextRequest) {
   if (!isSetupAccessAllowed(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
