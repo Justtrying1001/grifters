@@ -30,8 +30,8 @@ function isRuntimeSetupEnabled() {
 export function getSetupAuthFailureReason(req: NextRequest) {
   const expected = process.env.SETUP_SECRET?.trim();
   if (!expected) {
-    // Developer experience fallback: allow setup locally when no secret is configured.
-    if (process.env.NODE_ENV !== "production" && process.env.VERCEL_ENV !== "production") {
+    // Developer experience fallback: allow setup outside production when no secret is configured.
+    if (process.env.VERCEL_ENV !== "production" || process.env.NODE_ENV !== "production") {
       return null;
     }
     return "SETUP_SECRET manquant";
