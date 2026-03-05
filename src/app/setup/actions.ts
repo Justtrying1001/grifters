@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+function toStoredAdminEmail(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.includes("@") ? normalized : `${normalized}@admin.local`;
+}
+
 export async function resetDb() {
   await prisma.adminAuditLog.deleteMany();
   await prisma.rateLimit.deleteMany();
@@ -17,11 +23,12 @@ export async function resetDb() {
   await prisma.project.deleteMany();
 }
 
-export async function createAdmin(email: string, password: string) {
+export async function createAdmin(identifier: string, password: string) {
+  const storedEmail = toStoredAdminEmail(identifier);
   const hashed = await bcrypt.hash(password, 12);
   await prisma.user.upsert({
-    where: { email },
+    where: { email: storedEmail },
     update: { password: hashed },
-    create: { email, password: hashed, role: "ADMIN" },
+    create: { email: storedEmail, password: hashed, role: "ADMIN" },
   });
 }

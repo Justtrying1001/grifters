@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSetupAuthFailureReason } from "@/lib/setup-auth";
 
-// Protected by SETUP_SECRET env var — call with ?secret=<SETUP_SECRET>
 export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret");
-  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const setupFailureReason = getSetupAuthFailureReason(req);
+  if (setupFailureReason) {
+    return NextResponse.json({ error: setupFailureReason }, { status: 401 });
   }
 
   await prisma.adminAuditLog.deleteMany();
