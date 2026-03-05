@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { isSetupAccessAllowed } from "@/lib/setup-auth";
+
+function toStoredAdminEmail(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.includes("@") ? normalized : `${normalized}@admin.local`;
+}
 
 function toStoredAdminEmail(identifier: string) {
   const normalized = identifier.trim().toLowerCase();
@@ -9,8 +16,7 @@ function toStoredAdminEmail(identifier: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret");
-  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
+  if (!isSetupAccessAllowed(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

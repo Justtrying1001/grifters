@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 function SetupContent() {
-  const params = useSearchParams();
-  const secret = params.get("secret") ?? "";
+  const [setupSecret, setSetupSecret] = useState("");
 
   const [resetStatus, setResetStatus] = useState<string | null>(null);
-  const [adminIdentifier, setAdminIdentifier] = useState("");
+  const [adminIdentifier, setAdminIdentifier] = useState("admin");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminStatus, setAdminStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<"reset" | "admin" | null>(null);
@@ -17,7 +15,7 @@ function SetupContent() {
   async function handleReset() {
     if (!confirm("Vider toutes les données ? (hors users)")) return;
     setLoading("reset");
-    const res = await fetch(`/api/admin/db-reset?secret=${encodeURIComponent(secret)}`, { method: "POST" });
+    const res = await fetch("/api/admin/db-reset", { method: "POST", headers: { "x-setup-secret": setupSecret } });
     const data = await res.json();
     setResetStatus(res.ok ? "DB vidée avec succès." : `Erreur : ${data.error}`);
     setLoading(null);
@@ -26,9 +24,9 @@ function SetupContent() {
   async function handleCreateAdmin(e: React.FormEvent) {
     e.preventDefault();
     setLoading("admin");
-    const res = await fetch(`/api/setup/create-admin?secret=${encodeURIComponent(secret)}`, {
+    const res = await fetch("/api/setup/create-admin", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-setup-secret": setupSecret },
       body: JSON.stringify({ identifier: adminIdentifier, password: adminPassword }),
     });
     const data = await res.json();
@@ -36,12 +34,21 @@ function SetupContent() {
     setLoading(null);
   }
 
-  if (!secret) {
-    return <p className="text-red-400">Accès refusé — ajoute <code>?secret=xxx</code> dans l’URL.</p>;
-  }
-
   return (
     <div className="space-y-8">
+      <section className="bg-zinc-800 rounded-lg p-6">
+        <h2 className="text-lg font-bold mb-2 text-amber-400">Accès Setup sécurisé</h2>
+        <p className="text-sm text-zinc-400 mb-4">Le secret setup est requis et transmis uniquement en header (jamais dans l’URL). En production, active explicitement <code>ENABLE_SETUP=true</code>.</p>
+        <input
+          type="password"
+          value={setupSecret}
+          onChange={e => setSetupSecret(e.target.value)}
+          required
+          placeholder="SETUP_SECRET"
+          className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+        />
+      </section>
+
       {/* Reset */}
       <section className="bg-zinc-800 rounded-lg p-6">
         <h2 className="text-lg font-bold mb-2 text-red-400">Reset DB</h2>

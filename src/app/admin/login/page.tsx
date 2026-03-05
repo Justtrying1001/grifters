@@ -38,8 +38,10 @@ export default function AdminLoginPage() {
         <div className="text-center mb-8">
           <Shield className="h-8 w-8 text-red-400 mx-auto mb-3" />
           <h1 className="text-xl font-bold text-white">GRIFTER ADMIN</h1>
-          <p className="text-sm text-zinc-400 mt-1">Sign in to access the admin panel</p>
+          <p className="text-sm text-zinc-400 mt-1">Connecte-toi avec ton identifiant admin et ton mot de passe</p>
         </div>
+
+        <p className="text-xs text-zinc-400 mb-4 text-center">Exemple identifiant: <code className="bg-zinc-800 text-zinc-200 px-1 rounded">admin</code></p>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xl p-6 space-y-4">
           <div>

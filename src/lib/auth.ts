@@ -5,24 +5,20 @@ import { prisma } from "./prisma";
 
 function getIdentifierCandidates(rawIdentifier: string) {
   const normalized = rawIdentifier.trim().toLowerCase();
-  const candidates = new Set<string>([normalized]);
+
+  if (!normalized) return [];
 
   if (normalized.includes("@")) {
-    const localPart = normalized.split("@")[0];
-    if (localPart) {
-      candidates.add(localPart);
-      candidates.add(`${localPart}@admin.local`);
-    }
-
-    candidates.add(normalized.replace("@grifters.io", "@grifter.io"));
-    candidates.add(normalized.replace("@grifter.io", "@grifters.io"));
-  } else {
-    candidates.add(`${normalized}@admin.local`);
-    candidates.add(`${normalized}@grifter.io`);
-    candidates.add(`${normalized}@grifters.io`);
+    return Array.from(
+      new Set([
+        normalized,
+        normalized.replace("@grifters.io", "@grifter.io"),
+        normalized.replace("@grifter.io", "@grifters.io"),
+      ]),
+    );
   }
 
-  return { normalized, candidates: Array.from(candidates) };
+  return [`${normalized}@admin.local`, `${normalized}@grifter.io`, `${normalized}@grifters.io`];
 }
 
 export const authOptions: NextAuthOptions = {
@@ -36,21 +32,14 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.identifier || !credentials?.password) return null;
 
-        const { normalized, candidates } = getIdentifierCandidates(credentials.identifier);
+        const candidates = getIdentifierCandidates(credentials.identifier);
+        if (candidates.length === 0) return null;
 
         const user = await prisma.user.findFirst({
           where: {
-            OR: [
-              ...candidates.map((value) => ({
-                email: { equals: value, mode: "insensitive" as const },
-              })),
-              {
-                email: {
-                  startsWith: `${normalized}@`,
-                  mode: "insensitive" as const,
-                },
-              },
-            ],
+            OR: candidates.map((value) => ({
+              email: { equals: value, mode: "insensitive" as const },
+            })),
           },
         });
 
