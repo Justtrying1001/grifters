@@ -37,5 +37,5 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Admin security note
 
-The temporary `/setup` flow has been removed to reduce attack surface.
+The runtime `/setup` and related setup APIs are disabled to reduce attack surface.
 Create/manage admin users through seeded data or direct database/admin tooling only.
