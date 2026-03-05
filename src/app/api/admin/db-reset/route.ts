@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isSetupAccessAllowed } from "@/lib/setup-auth";
+import { getSetupAuthFailureReason } from "@/lib/setup-auth";
 
 export async function POST(req: NextRequest) {
-  if (!isSetupAccessAllowed(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const setupFailureReason = getSetupAuthFailureReason(req);
+  if (setupFailureReason) {
+    return NextResponse.json({ error: setupFailureReason }, { status: 401 });
   }
 
   await prisma.adminAuditLog.deleteMany();

@@ -15,7 +15,7 @@ function SetupContent() {
   async function handleReset() {
     if (!confirm("Vider toutes les données ? (hors users)")) return;
     setLoading("reset");
-    const res = await fetch("/api/admin/db-reset", { method: "POST", headers: { "x-setup-secret": setupSecret } });
+    const res = await fetch("/api/admin/db-reset", { method: "POST", headers: { "x-setup-secret": setupSecret, Authorization: `Bearer ${setupSecret}` } });
     const data = await res.json();
     setResetStatus(res.ok ? "DB vidée avec succès." : `Erreur : ${data.error}`);
     setLoading(null);
@@ -26,7 +26,7 @@ function SetupContent() {
     setLoading("admin");
     const res = await fetch("/api/setup/create-admin", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-setup-secret": setupSecret },
+      headers: { "Content-Type": "application/json", "x-setup-secret": setupSecret, Authorization: `Bearer ${setupSecret}` },
       body: JSON.stringify({ identifier: adminIdentifier, password: adminPassword }),
     });
     const data = await res.json();

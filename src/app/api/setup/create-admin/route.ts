@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { isSetupAccessAllowed } from "@/lib/setup-auth";
+import { getSetupAuthFailureReason } from "@/lib/setup-auth";
 
 function toStoredAdminEmail(identifier: string) {
   const normalized = identifier.trim().toLowerCase();
@@ -10,8 +10,9 @@ function toStoredAdminEmail(identifier: string) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isSetupAccessAllowed(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const setupFailureReason = getSetupAuthFailureReason(req);
+  if (setupFailureReason) {
+    return NextResponse.json({ error: setupFailureReason }, { status: 401 });
   }
 
   const { identifier, email, password } = await req.json();
