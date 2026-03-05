@@ -9,7 +9,7 @@ function SetupContent() {
   const secret = params.get("secret") ?? "";
 
   const [resetStatus, setResetStatus] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState("admin@grifters.io");
+  const [adminIdentifier, setAdminIdentifier] = useState("admin");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminStatus, setAdminStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<"reset" | "admin" | null>(null);
@@ -29,15 +29,15 @@ function SetupContent() {
     const res = await fetch(`/api/setup/create-admin?secret=${encodeURIComponent(secret)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      body: JSON.stringify({ identifier: adminIdentifier, password: adminPassword }),
     });
     const data = await res.json();
-    setAdminStatus(res.ok ? `Admin créé : ${adminEmail}` : `Erreur : ${data.error}`);
+    setAdminStatus(res.ok ? `Admin créé : ${adminIdentifier}` : `Erreur : ${data.error}`);
     setLoading(null);
   }
 
   if (!secret) {
-    return <p className="text-red-400">Accès refusé — ajoute <code>?secret=xxx</code> dans l'URL.</p>;
+    return <p className="text-red-400">Accès refusé — ajoute <code>?secret=xxx</code> dans l’URL.</p>;
   }
 
   return (
@@ -59,15 +59,15 @@ function SetupContent() {
       {/* Create admin */}
       <section className="bg-zinc-800 rounded-lg p-6">
         <h2 className="text-lg font-bold mb-2 text-blue-400">Créer / réinitialiser un admin</h2>
-        <p className="text-sm text-zinc-400 mb-4">Crée un compte admin ou met à jour son mot de passe.</p>
+        <p className="text-sm text-zinc-400 mb-4">Crée un compte admin (identifiant + mot de passe) ou met à jour son mot de passe.</p>
         {adminStatus && <p className="text-sm mb-3 text-green-400">{adminStatus}</p>}
         <form onSubmit={handleCreateAdmin} className="space-y-3">
           <input
-            type="email"
-            value={adminEmail}
-            onChange={e => setAdminEmail(e.target.value)}
+            type="text"
+            value={adminIdentifier}
+            onChange={e => setAdminIdentifier(e.target.value)}
             required
-            placeholder="email@exemple.com"
+            placeholder="identifiant-admin"
             className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
