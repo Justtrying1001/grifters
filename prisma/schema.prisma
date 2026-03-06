@@ -226,17 +226,109 @@ model RateLimit {
 }
 
 model RawSource {
-  id         String   @id @default(cuid())
-  sourceType String   @default("X_THREAD")
-  sourceUrl  String
-  externalId String
-  rawText    String   @db.Text
-  rawJson    Json
-  metadata   Json     @default("{}")
-  importedAt DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                        String                     @id @default(cuid())
+  sourceType                String                     @default("X_THREAD")
+  sourceUrl                 String
+  externalId                String
+  rawText                   String                     @db.Text
+  rawJson                   Json
+  metadata                  Json                       @default("{}")
+  importedAt                DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  NormalizedThreadCandidate NormalizedThreadCandidate?
 
   @@unique([sourceType, externalId])
   @@index([sourceUrl])
   @@map("raw_sources")
+}
+
+enum CandidateEntityKind {
+  PERSON
+  ALIAS
+  X_HANDLE
+  WALLET
+  ORGANIZATION
+  PROJECT
+}
+
+enum ExtractionRunType {
+  DETERMINISTIC
+  LLM_ENRICHED
+}
+
+model NormalizedThreadCandidate {
+  id                  String            @id @default(cuid())
+  rawSourceId         String            @unique
+  rawSource           RawSource         @relation(fields: [rawSourceId], references: [id], onDelete: Cascade)
+  runType             ExtractionRunType @default(DETERMINISTIC)
+  extractorVersion    String
+  deterministicResult Json
+  llmResult           Json?
+  mergedResult        Json
+  incidentType        IncidentType?
+  confidence          Float             @default(0)
+  needsReview         Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  entities NormalizedCandidateEntity[]
+  claims   NormalizedCandidateClaim[]
+  wallets  NormalizedCandidateWallet[]
+
+  @@index([incidentType])
+  @@index([needsReview])
+  @@map("normalized_thread_candidates")
+}
+
+model NormalizedCandidateEntity {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  kind              CandidateEntityKind
+  value             String
+  normalizedValue   String
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  metadata          Json                      @default("{}")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@unique([threadCandidateId, kind, normalizedValue])
+  @@index([threadCandidateId, kind])
+  @@index([normalizedValue])
+  @@map("normalized_candidate_entities")
+}
+
+model NormalizedCandidateWallet {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  address           String
+  chainHint         String?
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  createdAt         DateTime                  @default(now())
+
+  @@unique([threadCandidateId, address])
+  @@index([threadCandidateId])
+  @@index([address])
+  @@map("normalized_candidate_wallets")
+}
+
+model NormalizedCandidateClaim {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  claimText         String                    @db.Text
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  metadata          Json                      @default("{}")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([threadCandidateId])
+  @@map("normalized_candidate_claims")
 }

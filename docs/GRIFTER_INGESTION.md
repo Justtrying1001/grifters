@@ -2,69 +2,97 @@
 
 ## Current repository inspection
 
-### Prisma models currently in production flow
-The current schema has core entities for public-facing records (`Person`, `Project`, `Incident`, `Source`) and moderation workflows (`Response`, `Dispute`, `AdminAuditLog`). There is no staging layer for raw source documents yet. The existing `prisma/seed-threads.ts` script writes thread-derived values directly into `incidents` and `sources`, which bypasses a safe extraction/materialization pipeline.
+### Current Prisma flow
+The current production-facing models remain `Person`, `Project`, `Incident`, and `Source`, plus moderation models (`Response`, `Dispute`, `AdminAuditLog`).
 
-### Raw thread input present in the repository
-The repository already includes `threads_raw.json`, containing thread-level source text and metadata (`threadId`, `sourceUrl`, `threadReaderUrl`, `description`, `fullText`, `urls`, etc.).
+The staging layer now includes:
+- `raw_sources` (Step 1)
+- Step 2 candidate tables described below
 
-## Minimal migration plan
+### Raw source input
+`threads_raw.json` remains the initial import artifact. Each thread is treated as one source document in `raw_sources`.
 
-This is the minimal schema evolution needed for the full 3-step pipeline:
+## Minimal migration plan status
 
-1. **Step 1 (implemented now): raw ingestion**
-   - Add `raw_sources` table for immutable source documents and metadata.
-   - Unique key on `(sourceType, externalId)` for idempotent upserts.
+1. **Step 1: Raw import** ✅ implemented
+   - `raw_sources` table
+   - idempotent importer script
 
-2. **Step 2 (next): structured extraction candidates**
-   - Add candidate tables scoped to `raw_sources` such as:
-     - `candidate_people`
-     - `candidate_aliases`
-     - `candidate_handles`
-     - `candidate_wallets`
-     - `candidate_organizations`
-     - `candidate_claims`
-   - Include deterministic extractor fields (`extractor = regex|llm`, confidence score, evidence snippet offsets).
-   - Enforce strict JSON schema validation for LLM output.
+2. **Step 2: Structured extraction to candidate tables** ✅ implemented
+   - `normalized_thread_candidates`
+   - `normalized_candidate_entities`
+   - `normalized_candidate_claims`
+   - `normalized_candidate_wallets`
 
-3. **Step 3 (next): materialization**
-   - Add `incidents`, `claims`, `incident_sources`, `incident_entities`, `wallets` mapping/upsert logic from candidates.
-   - Auto-merge only exact wallet/handle matches.
-   - Route name-only fuzzy matches to manual review queue.
+3. **Step 3: Materialization to final production tables** ⏳ not implemented yet
+   - no writes to final incident/entity tables in this step
 
-## Step 1 implementation details (raw import)
+---
 
-### Schema
-A new Prisma model is added:
-- `RawSource` mapped to table `raw_sources`
-- Stores:
-  - `sourceType`
-  - `sourceUrl`
-  - `externalId`
-  - `rawText`
-  - `rawJson`
-  - `metadata`
-  - timestamps (`importedAt`, `updatedAt`)
+## Step 2 implementation
 
-### Import script
-New script: `prisma/import-raw-sources.ts`
+### New candidate tables
 
-Behavior:
-- Reads `threads_raw.json`
-- Treats each thread as one source document
-- Builds `rawText` from available text fields
-- Preserves full original object in `rawJson`
-- Stores basic metadata (`date`, `threadReaderUrl`, `urls`)
-- Upserts idempotently by `(sourceType, externalId)`
-- Supports dry-run mode with no writes
-- Logs create/update/unchanged/skip counts
+#### `normalized_thread_candidates`
+One record per `raw_sources` record:
+- stores deterministic extraction result JSON
+- stores optional LLM extraction result JSON
+- stores merged normalized result JSON
+- stores incident type candidate, confidence, and manual-review flag
+
+#### `normalized_candidate_entities`
+Normalized entities extracted per thread candidate:
+- `kind`: `PERSON`, `ALIAS`, `X_HANDLE`, `WALLET`, `ORGANIZATION`, `PROJECT`
+- `value`, `normalizedValue`
+- evidence snippet
+- source method (`regex`, `heuristic`, `llm`)
+- confidence
+- metadata JSON
+
+#### `normalized_candidate_claims`
+Claim candidates with evidence snippets and confidence.
+
+#### `normalized_candidate_wallets` (optional, implemented)
+Wallet-specific candidate records for cleaner downstream matching/materialization.
+
+### Extraction script
+`prisma/extract-normalized-candidates.ts`
+
+#### Input
+Reads from `raw_sources` only.
+
+#### Deterministic extraction first
+- X handles via regex (`@handle`)
+- wallet addresses via regex (EVM + Solana-like base58 patterns)
+- person heuristic via `@handle (Real Name)` pattern
+- organization heuristic via simple phrasing patterns
+- claim lines from explicit claim/reporting language
+- incident type heuristic classification from explicit text patterns
+
+#### LLM extraction second (optional)
+When `--llm` is enabled and `OPENAI_API_KEY` is available:
+- calls model with strict JSON schema output
+- extraction prompt explicitly instructs: only explicit facts, no inference, keep ambiguity unresolved
+- merges LLM output with deterministic output (dedup by normalized keys)
+
+### Persistence behavior
+- Stores both deterministic result and merged normalized result
+- Stores optional LLM result separately
+- Idempotent per `rawSourceId`
+- Update path replaces child candidate rows atomically
+- Dry-run mode computes extraction and logs actions without writing
 
 ### npm scripts
-- `npm run db:import:raw`
-- `npm run db:import:raw:dry`
+- `npm run db:extract:candidates`
+- `npm run db:extract:candidates:dry`
+- `npm run db:extract:candidates:llm`
 
-## Safety constraints honored
-- No direct writes from raw text into final incident/person/project tables in the new ingestion path.
-- No legal conclusions are generated by this step.
-- No entity merging is performed in this step.
+---
 
+## Safety and policy rules enforced in Step 2
+- No writes to final production incident/person/project tables.
+- No aggressive identity merging.
+- Neutral extraction language only.
+- No legal conclusions are generated.
+- Ambiguous identities remain ambiguous and may be flagged for review.
+- Claims include evidence snippets from source text.
