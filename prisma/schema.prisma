@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum RiskLabel {
@@ -128,10 +128,13 @@ model Incident {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  sources   Source[]
-  people    IncidentPerson[]
-  projects  IncidentProject[]
-  responses Response[]
+  sources          Source[]
+  people           IncidentPerson[]
+  projects         IncidentProject[]
+  responses        Response[]
+  incidentEntities IncidentEntity[]
+  incidentSources  IncidentSource[]
+  claims           Claim[]
 
   @@map("incidents")
 }
@@ -223,4 +226,248 @@ model RateLimit {
 
   @@unique([ip, action, windowEnd])
   @@map("rate_limits")
+}
+
+model RawSource {
+  id                        String                     @id @default(cuid())
+  sourceType                String                     @default("X_THREAD")
+  sourceUrl                 String
+  externalId                String
+  rawText                   String                     @db.Text
+  rawJson                   Json
+  metadata                  Json                       @default("{}")
+  importedAt                DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  NormalizedThreadCandidate NormalizedThreadCandidate?
+  incidentSources           IncidentSource[]
+
+  @@unique([sourceType, externalId])
+  @@index([sourceUrl])
+  @@map("raw_sources")
+}
+
+enum CandidateEntityKind {
+  PERSON
+  ALIAS
+  X_HANDLE
+  WALLET
+  ORGANIZATION
+  PROJECT
+}
+
+enum ExtractionRunType {
+  DETERMINISTIC
+  LLM_ENRICHED
+}
+
+model NormalizedThreadCandidate {
+  id                  String            @id @default(cuid())
+  rawSourceId         String            @unique
+  rawSource           RawSource         @relation(fields: [rawSourceId], references: [id], onDelete: Cascade)
+  runType             ExtractionRunType @default(DETERMINISTIC)
+  extractorVersion    String
+  deterministicResult Json
+  llmResult           Json?
+  mergedResult        Json
+  incidentType        IncidentType?
+  confidence          Float             @default(0)
+  needsReview         Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  entities        NormalizedCandidateEntity[]
+  claims          NormalizedCandidateClaim[]
+  wallets         NormalizedCandidateWallet[]
+  incidentSources IncidentSource[]
+
+  @@index([incidentType])
+  @@index([needsReview])
+  @@map("normalized_thread_candidates")
+}
+
+model NormalizedCandidateEntity {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  kind              CandidateEntityKind
+  value             String
+  normalizedValue   String
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  metadata          Json                      @default("{}")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@unique([threadCandidateId, kind, normalizedValue])
+  @@index([threadCandidateId, kind])
+  @@index([normalizedValue])
+  @@map("normalized_candidate_entities")
+}
+
+model NormalizedCandidateWallet {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  address           String
+  chainHint         String?
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  createdAt         DateTime                  @default(now())
+
+  @@unique([threadCandidateId, address])
+  @@index([threadCandidateId])
+  @@index([address])
+  @@map("normalized_candidate_wallets")
+}
+
+model NormalizedCandidateClaim {
+  id                String                    @id @default(cuid())
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  claimText         String                    @db.Text
+  evidenceSnippet   String                    @db.Text
+  sourceMethod      String
+  confidence        Float                     @default(0)
+  metadata          Json                      @default("{}")
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([threadCandidateId])
+  @@map("normalized_candidate_claims")
+}
+
+enum FinalEntityKind {
+  PERSON
+  ORGANIZATION
+  PROJECT
+  UNKNOWN
+}
+
+enum ManualReviewStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model GrifterEntity {
+  id             String          @id @default(cuid())
+  kind           FinalEntityKind @default(UNKNOWN)
+  canonicalName  String
+  normalizedName String
+  confidence     Float           @default(0)
+  provenance     Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  aliases   EntityAlias[]
+  wallets   EntityWallet[]
+  incidents IncidentEntity[]
+
+  @@index([normalizedName])
+  @@map("entities")
+}
+
+model EntityAlias {
+  id              String        @id @default(cuid())
+  entityId        String
+  entity          GrifterEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  alias           String
+  normalizedAlias String
+  confidence      Float         @default(0)
+  provenance      Json          @default("{}")
+  createdAt       DateTime      @default(now())
+
+  @@unique([entityId, normalizedAlias])
+  @@index([normalizedAlias])
+  @@map("entity_aliases")
+}
+
+model EntityWallet {
+  id                String        @id @default(cuid())
+  entityId          String
+  entity            GrifterEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  address           String
+  normalizedAddress String
+  chainHint         String?
+  confidence        Float         @default(0)
+  provenance        Json          @default("{}")
+  createdAt         DateTime      @default(now())
+
+  @@unique([normalizedAddress])
+  @@index([entityId])
+  @@map("entity_wallets")
+}
+
+model IncidentEntity {
+  id                      String        @id @default(cuid())
+  incidentId              String
+  incident                Incident      @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  entityId                String
+  entity                  GrifterEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  role                    String?
+  confidence              Float         @default(0)
+  sourceCandidateEntityId String
+  provenance              Json          @default("{}")
+  createdAt               DateTime      @default(now())
+
+  @@unique([incidentId, entityId])
+  @@unique([sourceCandidateEntityId])
+  @@index([entityId])
+  @@map("incident_entities")
+}
+
+model IncidentSource {
+  id                String                    @id @default(cuid())
+  incidentId        String
+  incident          Incident                  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  rawSourceId       String
+  rawSource         RawSource                 @relation(fields: [rawSourceId], references: [id], onDelete: Cascade)
+  threadCandidateId String
+  threadCandidate   NormalizedThreadCandidate @relation(fields: [threadCandidateId], references: [id], onDelete: Cascade)
+  confidence        Float                     @default(0)
+  createdAt         DateTime                  @default(now())
+  Claim             Claim[]
+
+  @@unique([incidentId, rawSourceId])
+  @@unique([threadCandidateId])
+  @@index([rawSourceId])
+  @@map("incident_sources")
+}
+
+model Claim {
+  id                     String         @id @default(cuid())
+  incidentId             String
+  incident               Incident       @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  sourceId               String
+  source                 IncidentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceCandidateClaimId String
+  claimText              String         @db.Text
+  evidenceSnippet        String         @db.Text
+  confidence             Float          @default(0)
+  provenance             Json           @default("{}")
+  createdAt              DateTime       @default(now())
+
+  @@unique([incidentId, sourceCandidateClaimId])
+  @@index([sourceId])
+  @@map("claims")
+}
+
+model ManualReviewQueue {
+  id                String             @id @default(cuid())
+  status            ManualReviewStatus @default(OPEN)
+  queueType         String
+  reason            String             @db.Text
+  dedupeKey         String             @unique
+  threadCandidateId String?
+  candidateEntityId String?
+  candidateWalletId String?
+  payload           Json               @default("{}")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([status])
+  @@index([threadCandidateId])
+  @@map("manual_review_queue")
 }

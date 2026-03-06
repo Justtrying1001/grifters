@@ -11,7 +11,14 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:seed:threads": "tsx prisma/seed-threads.ts"
+    "db:seed:threads": "tsx prisma/seed-threads.ts",
+    "db:import:raw": "tsx prisma/import-raw-sources.ts",
+    "db:import:raw:dry": "tsx prisma/import-raw-sources.ts --dry-run",
+    "db:extract:candidates": "tsx prisma/extract-normalized-candidates.ts",
+    "db:extract:candidates:dry": "tsx prisma/extract-normalized-candidates.ts --dry-run",
+    "db:extract:candidates:llm": "tsx prisma/extract-normalized-candidates.ts --llm",
+    "db:materialize": "tsx prisma/materialize-normalized-candidates.ts",
+    "db:materialize:dry": "tsx prisma/materialize-normalized-candidates.ts --dry-run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
