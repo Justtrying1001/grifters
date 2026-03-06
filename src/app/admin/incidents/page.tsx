@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { ExternalLink, Trash2 } from "lucide-react";
 
@@ -33,14 +33,29 @@ export default function AdminIncidents() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  const allSelected = useMemo(
+    () => incidents.length > 0 && selectedIds.length === incidents.length,
+    [incidents.length, selectedIds.length]
+  );
+  const hasSelection = selectedIds.length > 0;
 
   const fetchIncidents = useCallback(async () => {
     const url = filter === "all" ? "/api/admin/incidents" : `/api/admin/incidents?status=${filter}`;
     const res = await fetch(url);
     const data = await res.json();
     setIncidents(data.incidents ?? []);
+    setSelectedIds([]);
     setLoading(false);
   }, [filter]);
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate = hasSelection && !allSelected;
+  }, [allSelected, hasSelection]);
 
   useEffect(() => { setLoading(true); fetchIncidents(); }, [fetchIncidents]);
 
@@ -50,6 +65,35 @@ export default function AdminIncidents() {
     await fetch(`/api/admin/incidents/${id}`, { method: "DELETE" });
     await fetchIncidents();
     setDeletingId(null);
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((previous) =>
+      previous.includes(id) ? previous.filter((selectedId) => selectedId !== id) : [...previous, id]
+    );
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds([]);
+      return;
+    }
+
+    setSelectedIds(incidents.map((incident) => incident.id));
+  }
+
+  async function handleBulkDelete() {
+    if (!hasSelection) return;
+    if (!confirm(`Delete ${selectedIds.length} selected incident(s)? This cannot be undone.`)) return;
+
+    setBulkDeleting(true);
+    await Promise.all(
+      selectedIds.map(async (id) => {
+        await fetch(`/api/admin/incidents/${id}`, { method: "DELETE" });
+      })
+    );
+    await fetchIncidents();
+    setBulkDeleting(false);
   }
 
   return (
@@ -70,6 +114,22 @@ export default function AdminIncidents() {
         ))}
       </div>
 
+      {hasSelection && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2">
+          <p className="text-sm text-zinc-600">
+            {selectedIds.length} incident{selectedIds.length > 1 ? "s" : ""} selected
+          </p>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {bulkDeleting ? "Deleting..." : "Delete selected"}
+          </button>
+        </div>
+      )}
+
       {loading && <p className="text-zinc-400">Loading...</p>}
 
       <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
@@ -80,6 +140,16 @@ export default function AdminIncidents() {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b border-zinc-200">
               <tr>
+                <th className="px-4 py-3">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all incidents"
+                    className="h-4 w-4 rounded border-zinc-300"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 text-zinc-500 font-medium">Type</th>
                 <th className="text-left px-4 py-3 text-zinc-500 font-medium">Date</th>
                 <th className="text-left px-4 py-3 text-zinc-500 font-medium">Summary</th>
@@ -91,6 +161,15 @@ export default function AdminIncidents() {
             <tbody className="divide-y divide-zinc-100">
               {incidents.map((incident) => (
                 <tr key={incident.id} className="hover:bg-zinc-50">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(incident.id)}
+                      onChange={() => toggleSelection(incident.id)}
+                      aria-label={`Select incident ${incident.summary}`}
+                      className="h-4 w-4 rounded border-zinc-300"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-zinc-600 text-xs">{TYPE_LABELS[incident.type] ?? incident.type}</td>
                   <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
                     {new Date(incident.date).toLocaleDateString("en-US", { year: "numeric", month: "short" })}
@@ -109,7 +188,7 @@ export default function AdminIncidents() {
                       </Link>
                       <button
                         onClick={() => handleDelete(incident.id)}
-                        disabled={deletingId === incident.id}
+                        disabled={deletingId === incident.id || bulkDeleting}
                         className="text-red-400 hover:text-red-600 disabled:opacity-50"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
