@@ -455,7 +455,7 @@ async function main() {
       });
 
       const deterministicResult = deterministic as unknown as Prisma.InputJsonValue;
-      const llmResult = (llm ?? null) as Prisma.InputJsonValue | null;
+      const llmResult = llm ? (llm as Prisma.InputJsonValue) : Prisma.JsonNull;
       const mergedResult = merged as unknown as Prisma.InputJsonValue;
 
       if (!existing) {

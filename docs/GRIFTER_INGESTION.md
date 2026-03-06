@@ -2,97 +2,94 @@
 
 ## Current repository inspection
 
-### Current Prisma flow
-The current production-facing models remain `Person`, `Project`, `Incident`, and `Source`, plus moderation models (`Response`, `Dispute`, `AdminAuditLog`).
+### Final production schema review
+Existing production tables already include `incidents`, but did not include the full Step 3 materialization model set (`entities`, `entity_aliases`, `entity_wallets`, `incident_entities`, `incident_sources`, `claims`, `manual_review_queue`).
 
-The staging layer now includes:
-- `raw_sources` (Step 1)
-- Step 2 candidate tables described below
+Step 3 adds these missing normalized final tables while keeping the existing `incidents` table and linking safely via provenance.
 
-### Raw source input
-`threads_raw.json` remains the initial import artifact. Each thread is treated as one source document in `raw_sources`.
+### Staging and candidate layers
+- Step 1: `raw_sources`
+- Step 2: `normalized_thread_candidates`, `normalized_candidate_entities`, `normalized_candidate_claims`, `normalized_candidate_wallets`
+
+Step 3 reads from Step 2 tables only (with `rawSource` reference for source-link traceability).
+
+---
 
 ## Minimal migration plan status
 
 1. **Step 1: Raw import** ✅ implemented
-   - `raw_sources` table
-   - idempotent importer script
-
-2. **Step 2: Structured extraction to candidate tables** ✅ implemented
-   - `normalized_thread_candidates`
-   - `normalized_candidate_entities`
-   - `normalized_candidate_claims`
-   - `normalized_candidate_wallets`
-
-3. **Step 3: Materialization to final production tables** ⏳ not implemented yet
-   - no writes to final incident/entity tables in this step
+2. **Step 2: Structured extraction candidates** ✅ implemented
+3. **Step 3: Materialization into final tables** ✅ implemented
 
 ---
 
-## Step 2 implementation
+## Step 3 implementation
 
-### New candidate tables
+### Final tables added (minimal, normalized, idempotent-safe)
+- `entities`
+- `entity_aliases`
+- `entity_wallets`
+- `incident_entities`
+- `incident_sources`
+- `claims`
+- `manual_review_queue`
 
-#### `normalized_thread_candidates`
-One record per `raw_sources` record:
-- stores deterministic extraction result JSON
-- stores optional LLM extraction result JSON
-- stores merged normalized result JSON
-- stores incident type candidate, confidence, and manual-review flag
+`incidents` is reused as the final incident table.
 
-#### `normalized_candidate_entities`
-Normalized entities extracted per thread candidate:
-- `kind`: `PERSON`, `ALIAS`, `X_HANDLE`, `WALLET`, `ORGANIZATION`, `PROJECT`
-- `value`, `normalizedValue`
-- evidence snippet
-- source method (`regex`, `heuristic`, `llm`)
-- confidence
-- metadata JSON
+### Materialization script
+`prisma/materialize-normalized-candidates.ts`
 
-#### `normalized_candidate_claims`
-Claim candidates with evidence snippets and confidence.
+#### Inputs
+Reads from:
+- `normalized_thread_candidates`
+- `normalized_candidate_entities`
+- `normalized_candidate_claims`
+- `normalized_candidate_wallets`
 
-#### `normalized_candidate_wallets` (optional, implemented)
-Wallet-specific candidate records for cleaner downstream matching/materialization.
+Does not parse raw text during materialization logic.
 
-### Extraction script
-`prisma/extract-normalized-candidates.ts`
+#### Entity resolution rules (conservative)
+- Exact handle alias match can merge.
+- Exact wallet match can merge.
+- Name-only match does **not** auto-merge.
+- Ambiguous matches are inserted into `manual_review_queue`.
+- Low-confidence entities are queued for manual review.
 
-#### Input
-Reads from `raw_sources` only.
+#### Incident creation
+- One incident per normalized thread candidate.
+- Uses a deterministic slug (`normalized-<externalId>`).
+- Incident type and confidence come from thread candidates.
+- Status is set to `PENDING` for safe review-first operation.
+- Links source via `incident_sources`.
 
-#### Deterministic extraction first
-- X handles via regex (`@handle`)
-- wallet addresses via regex (EVM + Solana-like base58 patterns)
-- person heuristic via `@handle (Real Name)` pattern
-- organization heuristic via simple phrasing patterns
-- claim lines from explicit claim/reporting language
-- incident type heuristic classification from explicit text patterns
+#### Entity linking
+- Materialized entities are linked through `incident_entities`.
+- Candidate provenance and confidence are stored.
 
-#### LLM extraction second (optional)
-When `--llm` is enabled and `OPENAI_API_KEY` is available:
-- calls model with strict JSON schema output
-- extraction prompt explicitly instructs: only explicit facts, no inference, keep ambiguity unresolved
-- merges LLM output with deterministic output (dedup by normalized keys)
+#### Claims
+- Candidate claims are materialized into `claims`.
+- Evidence snippets and confidence are preserved.
+- Claims link to both incident and incident source.
 
-### Persistence behavior
-- Stores both deterministic result and merged normalized result
-- Stores optional LLM result separately
-- Idempotent per `rawSourceId`
-- Update path replaces child candidate rows atomically
-- Dry-run mode computes extraction and logs actions without writing
+#### Wallets
+- Wallet links are created only for high-confidence ownership mappings.
+- Unresolved or ambiguous ownership is routed to `manual_review_queue`.
+
+#### Idempotency and safety
+- Unique constraints and upsert/find checks prevent duplicates on re-runs.
+- Manual review queue uses deterministic dedupe keys.
+- Dry-run mode performs all decision logic without writes.
 
 ### npm scripts
-- `npm run db:extract:candidates`
-- `npm run db:extract:candidates:dry`
-- `npm run db:extract:candidates:llm`
+- `npm run db:materialize`
+- `npm run db:materialize:dry`
 
 ---
 
-## Safety and policy rules enforced in Step 2
-- No writes to final production incident/person/project tables.
-- No aggressive identity merging.
-- Neutral extraction language only.
-- No legal conclusions are generated.
-- Ambiguous identities remain ambiguous and may be flagged for review.
-- Claims include evidence snippets from source text.
+## Safety and policy rules enforced
+- No aggressive entity merging.
+- No legal guilt assertions.
+- Neutral language only.
+- Confidence-aware materialization.
+- Manual review queue for ambiguous or low-confidence cases.
+- Provenance preserved back to normalized candidate and source IDs.
