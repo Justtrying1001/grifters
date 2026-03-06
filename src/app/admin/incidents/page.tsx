@@ -28,15 +28,20 @@ const STATUS_STYLES: Record<string, string> = {
   CHANGES_REQUESTED: "bg-orange-100 text-orange-800",
 };
 
+const PAGE_SIZE = 20;
+
 export default function AdminIncidents() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const allSelected = useMemo(
     () => incidents.length > 0 && selectedIds.length === incidents.length,
     [incidents.length, selectedIds.length]
@@ -44,20 +49,32 @@ export default function AdminIncidents() {
   const hasSelection = selectedIds.length > 0;
 
   const fetchIncidents = useCallback(async () => {
-    const url = filter === "all" ? "/api/admin/incidents" : `/api/admin/incidents?status=${filter}`;
-    const res = await fetch(url);
+    setLoading(true);
+    const search = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+    if (filter !== "all") {
+      search.set("status", filter);
+    }
+
+    const res = await fetch(`/api/admin/incidents?${search.toString()}`);
     const data = await res.json();
     setIncidents(data.incidents ?? []);
+    setTotal(data.total ?? 0);
     setSelectedIds([]);
     setLoading(false);
-  }, [filter]);
+  }, [filter, page]);
 
   useEffect(() => {
     if (!selectAllRef.current) return;
     selectAllRef.current.indeterminate = hasSelection && !allSelected;
   }, [allSelected, hasSelection]);
 
-  useEffect(() => { setLoading(true); fetchIncidents(); }, [fetchIncidents]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchIncidents();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [fetchIncidents]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this incident? This cannot be undone.")) return;
@@ -96,6 +113,9 @@ export default function AdminIncidents() {
     setBulkDeleting(false);
   }
 
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -106,7 +126,10 @@ export default function AdminIncidents() {
         {["all", "PENDING", "APPROVED", "REJECTED", "CHANGES_REQUESTED"].map((s) => (
           <button
             key={s}
-            onClick={() => setFilter(s)}
+            onClick={() => {
+              setFilter(s);
+              setPage(1);
+            }}
             className={`text-sm px-3 py-1.5 rounded ${filter === s ? "bg-zinc-900 text-white" : "border border-zinc-300 text-zinc-600 hover:bg-zinc-50"}`}
           >
             {s === "all" ? "All" : s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ")}
@@ -201,6 +224,35 @@ export default function AdminIncidents() {
           </table>
         )}
       </div>
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <p>
+            Showing {pageStart}-{pageEnd} of {total} incidents
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={page === 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-zinc-600">
+              Page {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
