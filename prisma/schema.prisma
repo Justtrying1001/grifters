@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum RiskLabel {
@@ -223,4 +223,20 @@ model RateLimit {
 
   @@unique([ip, action, windowEnd])
   @@map("rate_limits")
+}
+
+model RawSource {
+  id         String   @id @default(cuid())
+  sourceType String   @default("X_THREAD")
+  sourceUrl  String
+  externalId String
+  rawText    String   @db.Text
+  rawJson    Json
+  metadata   Json     @default("{}")
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([sourceType, externalId])
+  @@index([sourceUrl])
+  @@map("raw_sources")
 }

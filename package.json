@@ -11,7 +11,9 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:seed:threads": "tsx prisma/seed-threads.ts"
+    "db:seed:threads": "tsx prisma/seed-threads.ts",
+    "db:import:raw": "tsx prisma/import-raw-sources.ts",
+    "db:import:raw:dry": "tsx prisma/import-raw-sources.ts --dry-run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
