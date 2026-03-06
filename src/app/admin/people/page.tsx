@@ -21,22 +21,38 @@ const RISK_STYLES: Record<string, string> = {
   CRITICAL: "bg-red-100 text-red-800",
 };
 
+const PAGE_SIZE = 20;
+
 export default function AdminPeople() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
+
   const fetchPeople = useCallback(async () => {
-    const res = await fetch("/api/people?limit=100");
+    setLoading(true);
+    const res = await fetch(`/api/people?page=${page}&limit=${PAGE_SIZE}`);
     const data = await res.json();
     setPeople(data.people ?? []);
+    setTotal(data.total ?? 0);
     setLoading(false);
-  }, []);
+  }, [page]);
 
-  useEffect(() => { fetchPeople(); }, [fetchPeople]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchPeople();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [fetchPeople]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this person? This cannot be undone.")) return;
@@ -57,6 +73,7 @@ export default function AdminPeople() {
     setNewName("");
     setShowCreate(false);
     setCreating(false);
+    setPage(1);
     await fetchPeople();
   }
 
@@ -143,6 +160,31 @@ export default function AdminPeople() {
           </table>
         )}
       </div>
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <p>Showing {pageStart}-{pageEnd} of {total} people</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={page === 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-zinc-600">Page {page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -42,6 +42,8 @@ const TYPE_LABELS: Record<string, string> = {
   EXIT_SCAM: "Exit Scam", OTHER: "Other",
 };
 
+const PAGE_SIZE = 20;
+
 export default function AdminQueue() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,15 +51,29 @@ export default function AdminQueue() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
 
   const fetchQueue = useCallback(async () => {
-    const res = await fetch("/api/admin/incidents?status=PENDING");
+    setLoading(true);
+    const res = await fetch(`/api/admin/incidents?status=PENDING&page=${page}&limit=${PAGE_SIZE}`);
     const data = await res.json();
     setIncidents(data.incidents ?? []);
+    setTotal(data.total ?? 0);
     setLoading(false);
-  }, []);
+  }, [page]);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchQueue();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [fetchQueue]);
 
   async function handleAction(id: string, status: string, reason?: string) {
     setActionLoading(id);
@@ -84,7 +100,7 @@ export default function AdminQueue() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-zinc-900 mb-2">Review Queue</h1>
-      <p className="text-zinc-500 text-sm mb-6">{incidents.length} pending submission{incidents.length !== 1 ? "s" : ""}</p>
+      <p className="text-zinc-500 text-sm mb-6">{total} pending submission{total !== 1 ? "s" : ""}</p>
 
       {incidents.length === 0 && (
         <div className="bg-white rounded-lg border border-zinc-200 p-12 text-center">
@@ -224,6 +240,32 @@ export default function AdminQueue() {
           </div>
         ))}
       </div>
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <p>Showing {pageStart}-{pageEnd} of {total} pending incidents</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={page === 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-zinc-600">Page {page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

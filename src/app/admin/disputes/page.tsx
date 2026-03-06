@@ -14,6 +14,8 @@ interface Dispute {
   createdAt: string;
 }
 
+const PAGE_SIZE = 20;
+
 export default function AdminDisputes() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,15 +23,29 @@ export default function AdminDisputes() {
   const [resolvedNote, setResolvedNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [filter, setFilter] = useState("PENDING");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, total);
 
   const fetchDisputes = useCallback(async () => {
-    const res = await fetch(`/api/admin/disputes?status=${filter}`);
+    setLoading(true);
+    const res = await fetch(`/api/admin/disputes?status=${filter}&page=${page}&limit=${PAGE_SIZE}`);
     const data = await res.json();
     setDisputes(data.disputes ?? []);
+    setTotal(data.total ?? 0);
     setLoading(false);
-  }, [filter]);
+  }, [filter, page]);
 
-  useEffect(() => { setLoading(true); fetchDisputes(); }, [fetchDisputes]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchDisputes();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [fetchDisputes]);
 
   async function handleAction(id: string, status: string, note?: string) {
     setActionLoading(id);
@@ -52,7 +68,10 @@ export default function AdminDisputes() {
         {["PENDING", "RESOLVED", "DISMISSED"].map((s) => (
           <button
             key={s}
-            onClick={() => setFilter(s)}
+            onClick={() => {
+              setFilter(s);
+              setPage(1);
+            }}
             className={`text-sm px-4 py-2 rounded ${filter === s ? "bg-zinc-900 text-white" : "border border-zinc-300 text-zinc-600 hover:bg-zinc-50"}`}
           >
             {s.charAt(0) + s.slice(1).toLowerCase()}
@@ -165,6 +184,31 @@ export default function AdminDisputes() {
           </div>
         ))}
       </div>
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <p>Showing {pageStart}-{pageEnd} of {total} disputes</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={page === 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-zinc-600">Page {page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.min(totalPages, previous + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

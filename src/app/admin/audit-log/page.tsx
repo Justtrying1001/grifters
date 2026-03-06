@@ -1,16 +1,35 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAuditLog() {
+const PAGE_SIZE = 50;
+
+export default async function AdminAuditLog({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string }>;
+}) {
   await requireAdmin();
 
-  const logs = await prisma.adminAuditLog.findMany({
-    take: 100,
-    orderBy: { createdAt: "desc" },
-    include: { admin: { select: { email: true } } },
-  });
+  const params = (await searchParams) ?? {};
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const skip = (page - 1) * PAGE_SIZE;
+
+  const [logs, total] = await Promise.all([
+    prisma.adminAuditLog.findMany({
+      skip,
+      take: PAGE_SIZE,
+      orderBy: { createdAt: "desc" },
+      include: { admin: { select: { email: true } } },
+    }),
+    prisma.adminAuditLog.count(),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageStart = total === 0 ? 0 : skip + 1;
+  const pageEnd = Math.min(skip + PAGE_SIZE, total);
 
   return (
     <div>
@@ -59,6 +78,29 @@ export default async function AdminAuditLog() {
           </table>
         )}
       </div>
+
+      {total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-zinc-500">
+          <p>Showing {pageStart}-{pageEnd} of {total} entries</p>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/admin/audit-log?page=${Math.max(1, page - 1)}`}
+              aria-disabled={page === 1}
+              className={`rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 ${page === 1 ? "pointer-events-none opacity-50" : "hover:bg-zinc-50"}`}
+            >
+              Previous
+            </Link>
+            <span className="text-zinc-600">Page {page} / {totalPages}</span>
+            <Link
+              href={`/admin/audit-log?page=${Math.min(totalPages, page + 1)}`}
+              aria-disabled={page >= totalPages}
+              className={`rounded border border-zinc-300 px-3 py-1.5 text-zinc-700 ${page >= totalPages ? "pointer-events-none opacity-50" : "hover:bg-zinc-50"}`}
+            >
+              Next
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
