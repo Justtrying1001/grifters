@@ -66,9 +66,10 @@ export default function SubmitPage() {
           date,
           summary,
           narrative,
+          involvedText,
           sources: validSources,
           contactEmail,
-          captchaToken: "dev-bypass",
+          captchaToken: process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ? "" : "dev-bypass",
         }),
       });
 

@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate required fields
-  const { type, date, summary, narrative, sources, contactEmail } = body;
+  const { type, date, summary, narrative, involvedText, sources, contactEmail } = body;
 
   if (!type || !date || !summary || !narrative) {
     return NextResponse.json(
@@ -97,7 +97,9 @@ export async function POST(req: NextRequest) {
       type: type as IncidentType,
       date: new Date(date),
       summary,
-      narrative,
+      narrative: involvedText
+        ? `${narrative}\n\n**Involved parties (submitted):** ${involvedText}`
+        : narrative,
       status: "PENDING",
       submitterEmail: contactEmail ?? null,
       submitterIp: ip,

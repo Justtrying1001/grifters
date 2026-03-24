@@ -27,14 +27,19 @@ export async function recomputePersonScore(personId: string) {
     return;
   }
 
-  const inputs = approvedIncidents.map((ip) => ({
+  // Only VERIFIED incidents contribute to the score
+  const verifiedIncidents = approvedIncidents.filter(
+    (ip) => ip.incident.evidenceStatus === "VERIFIED"
+  );
+
+  const inputs = verifiedIncidents.map((ip) => ({
     type: ip.incident.type,
     date: ip.incident.date,
     sourceCount: ip.incident.sources.length,
     hasArchivedSource: ip.incident.sources.some((s) => !!s.archiveUrl),
   }));
 
-  const { score, label } = computeRiskScore(inputs);
+  const { score, label } = inputs.length > 0 ? computeRiskScore(inputs) : { score: 0, label: "LOW" as const };
 
   await prisma.person.update({
     where: { id: personId },
@@ -68,14 +73,19 @@ export async function recomputeProjectScore(projectId: string) {
     return;
   }
 
-  const inputs = approvedIncidents.map((ip) => ({
+  // Only VERIFIED incidents contribute to the score
+  const verifiedIncidents = approvedIncidents.filter(
+    (ip) => ip.incident.evidenceStatus === "VERIFIED"
+  );
+
+  const inputs = verifiedIncidents.map((ip) => ({
     type: ip.incident.type,
     date: ip.incident.date,
     sourceCount: ip.incident.sources.length,
     hasArchivedSource: ip.incident.sources.some((s) => !!s.archiveUrl),
   }));
 
-  const { score, label } = computeRiskScore(inputs);
+  const { score, label } = inputs.length > 0 ? computeRiskScore(inputs) : { score: 0, label: "LOW" as const };
 
   await prisma.project.update({
     where: { id: projectId },
@@ -98,4 +108,56 @@ export async function recomputeScoresForIncident(incidentId: string) {
     ...incident.people.map((ip) => recomputePersonScore(ip.personId)),
     ...incident.projects.map((ip) => recomputeProjectScore(ip.projectId)),
   ]);
+}
+
+export async function recomputeEvidenceStatus(entityId: string, kind: "person" | "project") {
+  const includeQuery = {
+    incidents: {
+      include: {
+        incident: { select: { evidenceStatus: true, status: true } },
+      },
+    },
+  };
+
+  const approvedIncidentStatuses: string[] = [];
+
+  if (kind === "person") {
+    const entity = await prisma.person.findUnique({
+      where: { id: entityId },
+      include: includeQuery,
+    });
+    if (!entity) return;
+    entity.incidents
+      .filter((ip) => ip.incident.status === "APPROVED")
+      .forEach((ip) => approvedIncidentStatuses.push(ip.incident.evidenceStatus));
+  } else {
+    const entity = await prisma.project.findUnique({
+      where: { id: entityId },
+      include: includeQuery,
+    });
+    if (!entity) return;
+    entity.incidents
+      .filter((ip) => ip.incident.status === "APPROVED")
+      .forEach((ip) => approvedIncidentStatuses.push(ip.incident.evidenceStatus));
+  }
+
+  let evidenceStatus: "ALLEGED" | "VERIFIED" | "CONTESTED" = "ALLEGED";
+
+  if (approvedIncidentStatuses.includes("CONTESTED")) {
+    evidenceStatus = "CONTESTED";
+  } else if (approvedIncidentStatuses.includes("VERIFIED")) {
+    evidenceStatus = "VERIFIED";
+  }
+
+  if (kind === "person") {
+    await prisma.person.update({
+      where: { id: entityId },
+      data: { evidenceStatus },
+    });
+  } else {
+    await prisma.project.update({
+      where: { id: entityId },
+      data: { evidenceStatus },
+    });
+  }
 }
