@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAuditAction } from "@/lib/audit";
-import { recomputeScoresForIncident } from "@/lib/recompute-scores";
+import { recomputeScoresForIncident, recomputePersonScore, recomputeProjectScore, recomputeEvidenceStatus } from "@/lib/recompute-scores";
 import { IncidentStatus, IncidentType } from "@prisma/client";
 
 export async function PATCH(
@@ -47,9 +47,21 @@ export async function PATCH(
     metadata: { previousStatus: existing.status, newStatus: status, rejectionReason },
   });
 
-  // Recompute risk scores if status changed
+  // Recompute risk scores and evidence status if status changed
   if (status) {
     await recomputeScoresForIncident(id);
+
+    const linkedIncident = await prisma.incident.findUnique({
+      where: { id },
+      include: { people: true, projects: true },
+    });
+
+    if (linkedIncident) {
+      await Promise.all([
+        ...linkedIncident.people.map((ip) => recomputeEvidenceStatus(ip.personId, "person")),
+        ...linkedIncident.projects.map((ip) => recomputeEvidenceStatus(ip.projectId, "project")),
+      ]);
+    }
   }
 
   return NextResponse.json(updated);
@@ -87,14 +99,8 @@ export async function DELETE(
 
   // Recompute scores for affected entities
   await Promise.all([
-    ...existing.people.map(async (ip) => {
-      const { recomputePersonScore } = await import("@/lib/recompute-scores");
-      return recomputePersonScore(ip.personId);
-    }),
-    ...existing.projects.map(async (ip) => {
-      const { recomputeProjectScore } = await import("@/lib/recompute-scores");
-      return recomputeProjectScore(ip.projectId);
-    }),
+    ...existing.people.map((ip) => recomputePersonScore(ip.personId)),
+    ...existing.projects.map((ip) => recomputeProjectScore(ip.projectId)),
   ]);
 
   return NextResponse.json({ success: true });

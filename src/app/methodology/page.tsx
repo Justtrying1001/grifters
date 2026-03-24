@@ -2,7 +2,7 @@ export default function MethodologyPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-zinc-900 mb-2">Methodology</h1>
-      <p className="text-zinc-500 mb-10">How we collect, review, and score entries in the Grifter database.</p>
+      <p className="text-zinc-500 mb-10">How we collect, review, score, and verify entries in the Grifter database.</p>
 
       <div className="prose prose-zinc max-w-none space-y-10">
 
@@ -21,6 +21,110 @@ export default function MethodologyPage() {
         </section>
 
         <section>
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Evidence Status</h2>
+          <p className="text-zinc-600 leading-relaxed mb-4">
+            Every incident, person, and project on Grifter is assigned one of three evidence statuses.
+            These statuses reflect the quality and verifiability of the evidence we have on file —
+            they do not constitute legal determinations.
+          </p>
+
+          <div className="space-y-4">
+            <div className="border border-zinc-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">🔍 Alleged</span>
+              </div>
+              <p className="text-sm text-zinc-600 mt-2">
+                The incident has been reported by credible sources but has not been independently
+                confirmed through on-chain data or external verification. This is the default status
+                for newly imported or submitted incidents. Alleged incidents still appear on profiles
+                but do not contribute to the risk score.
+              </p>
+            </div>
+
+            <div className="border border-zinc-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-semibold text-green-800 bg-green-100 px-2 py-0.5 rounded-full border border-green-200">✅ Verified</span>
+              </div>
+              <p className="text-sm text-zinc-600 mt-2">
+                The incident has been confirmed through on-chain evidence (transaction hashes
+                verified via Etherscan or equivalent block explorer), corroborating reports from
+                multiple independent sources, or other objective verification. Only Verified incidents
+                contribute to the risk score.
+              </p>
+            </div>
+
+            <div className="border border-zinc-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-semibold text-red-800 bg-red-100 px-2 py-0.5 rounded-full border border-red-200">⚠️ Contested</span>
+              </div>
+              <p className="text-sm text-zinc-600 mt-2">
+                The subject of the profile has submitted a formal dispute or response that raises
+                substantive questions about the accuracy of the reported information. Contested
+                profiles display a prominent yellow banner and a link to the submitted response.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Source Types</h2>
+          <p className="text-zinc-600 leading-relaxed mb-3">
+            Each source attached to an incident is classified by type:
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-zinc-200">
+                  <th className="text-left py-2 pr-4 text-zinc-500 font-medium">Type</th>
+                  <th className="text-left py-2 text-zinc-500 font-medium">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-zinc-600">
+                {[
+                  ["External Report", "Journalism, investigative threads, or third-party reporting."],
+                  ["On-chain Analysis", "Direct analysis of blockchain transaction data."],
+                  ["Archived Screenshot", "Archived or cached evidence from social media or web pages."],
+                  ["Victim Testimony", "First-person accounts from individuals affected by the incident."],
+                ].map(([type, desc]) => (
+                  <tr key={String(type)} className="border-b border-zinc-100">
+                    <td className="py-2 pr-4 font-medium">{type}</td>
+                    <td>{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">On-Chain Verification</h2>
+          <p className="text-zinc-600 leading-relaxed mb-3">
+            When an incident is imported or submitted with Ethereum transaction hashes, Grifter
+            automatically:
+          </p>
+          <ol className="list-decimal pl-5 space-y-2 text-zinc-600">
+            <li>Stores the transaction hash and generates a link to the relevant block explorer (Etherscan for Ethereum).</li>
+            <li>Sets the incident&apos;s evidence status to <strong>Verified</strong> if at least one transaction hash is present.</li>
+            <li>Optionally confirms each hash against the Etherscan API (requires <code className="text-xs bg-zinc-100 px-1 py-0.5 rounded">ETHERSCAN_API_KEY</code>) via the <code className="text-xs bg-zinc-100 px-1 py-0.5 rounded">db:verify:onchain</code> script, marking records as <em>externally confirmed</em>.</li>
+          </ol>
+          <p className="text-zinc-600 leading-relaxed mt-3">
+            Unconfirmed hashes are still shown on the incident page — the &quot;confirmed&quot; badge
+            indicates Etherscan returned a successful receipt for the transaction.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Source Archiving</h2>
+          <p className="text-zinc-600 leading-relaxed">
+            To prevent link rot and ensure evidence cannot be silently deleted, Grifter archives
+            all source URLs via <strong>archive.ph</strong>. The <code className="text-xs bg-zinc-100 px-1 py-0.5 rounded">db:archive:sources</code> script
+            processes each unarchived source and saves the archive URL alongside the original. Archived
+            links are displayed on incident pages labeled &quot;Archived&quot;. URLs that are already
+            archive.ph or web.archive.org links are skipped.
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-xl font-semibold text-zinc-900 mb-3">Approval Criteria</h2>
           <ul className="list-disc pl-5 space-y-2 text-zinc-600">
             <li>At least one verifiable source URL pointing to reporting, on-chain data, or official records.</li>
@@ -34,8 +138,9 @@ export default function MethodologyPage() {
         <section>
           <h2 className="text-xl font-semibold text-zinc-900 mb-3">Risk Scoring</h2>
           <p className="text-zinc-600 leading-relaxed mb-4">
-            Each person and project in the database receives a risk score from 0–100, computed
-            automatically based on their linked approved incidents.
+            Each person and project receives a risk score from 0–100. The score is computed
+            automatically based only on their linked <strong>Verified</strong> incidents. Alleged
+            incidents appear on the profile but do not contribute to the score.
           </p>
 
           <h3 className="text-base font-semibold text-zinc-800 mb-2">Risk Labels</h3>
@@ -146,6 +251,7 @@ export default function MethodologyPage() {
 
           <p className="text-zinc-600 text-sm mt-3">
             Scores are automatically recomputed every time an incident is approved, edited, or removed.
+            Only Verified incidents are included in the calculation.
           </p>
         </section>
 
@@ -169,7 +275,8 @@ export default function MethodologyPage() {
               <strong>Submit a dispute</strong> via the{" "}
               <a href="/dispute" className="underline hover:text-zinc-900">Dispute page</a>.
               Disputes are reviewed within 7 days. If a claim is found to be inaccurate, it will
-              be corrected or removed.
+              be corrected or removed. If the dispute raises substantive questions, the profile
+              status may be changed to Contested.
             </li>
             <li>
               <strong>Submit a response</strong> (right to reply). Approved responses are

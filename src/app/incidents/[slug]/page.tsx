@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { IncidentTypeBadge } from "@/components/shared/incident-type-badge";
 import { RiskLabelBadge } from "@/components/shared/risk-label";
 import { DisclaimerFooter } from "@/components/shared/disclaimer-banner";
+import { EvidenceStatusBadge } from "@/components/shared/evidence-status-badge";
 import { ExternalLink, Archive } from "lucide-react";
 
 interface Props {
@@ -17,6 +18,7 @@ export default async function IncidentPage({ params }: Props) {
     where: { slug, status: "APPROVED" },
     include: {
       sources: true,
+      onChainEvidence: true,
       people: { include: { person: { select: { slug: true, name: true, riskLabel: true } } } },
       projects: { include: { project: { select: { slug: true, name: true, riskLabel: true } } } },
       responses: { where: { status: "APPROVED" } },
@@ -25,12 +27,15 @@ export default async function IncidentPage({ params }: Props) {
 
   if (!incident) notFound();
 
+  const evidenceStatus = incident.evidenceStatus as "ALLEGED" | "VERIFIED" | "CONTESTED";
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Header */}
       <div className="mb-8">
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <IncidentTypeBadge type={incident.type} />
+          <EvidenceStatusBadge status={evidenceStatus} size="md" />
           <span className="text-sm text-zinc-500">
             {new Date(incident.date).toLocaleDateString("en-US", {
               year: "numeric",
@@ -80,6 +85,37 @@ export default async function IncidentPage({ params }: Props) {
         </div>
       </div>
 
+      {/* On-chain evidence — shown for VERIFIED incidents */}
+      {evidenceStatus === "VERIFIED" && incident.onChainEvidence.length > 0 && (
+        <div className="mb-10">
+          <h2 className="text-lg font-semibold text-zinc-900 mb-3">
+            On-Chain Evidence ({incident.onChainEvidence.length})
+          </h2>
+          <div className="space-y-2">
+            {incident.onChainEvidence.map((ev) => (
+              <div key={ev.id} className="flex items-center justify-between border border-zinc-200 rounded-lg px-4 py-2.5">
+                <div>
+                  <code className="text-xs font-mono text-zinc-700">{ev.txHash}</code>
+                  <span className="ml-2 text-xs text-zinc-400">{ev.chain}</span>
+                  {ev.externallyConfirmed && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">confirmed</span>
+                  )}
+                </div>
+                <a
+                  href={ev.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View on explorer
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Sources */}
       <div className="mb-10">
         <h2 className="text-lg font-semibold text-zinc-900 mb-3">
@@ -98,17 +134,19 @@ export default async function IncidentPage({ params }: Props) {
                   {source.title}
                   <ExternalLink className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
                 </a>
-                {source.archiveUrl && (
-                  <a
-                    href={source.archiveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 border border-zinc-200 rounded px-2 py-0.5 shrink-0"
-                  >
-                    <Archive className="h-3 w-3" />
-                    Archive
-                  </a>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {source.archiveUrl && (
+                    <a
+                      href={source.archiveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 border border-zinc-200 rounded px-2 py-0.5"
+                    >
+                      <Archive className="h-3 w-3" />
+                      Archived
+                    </a>
+                  )}
+                </div>
               </div>
               {source.excerpt && (
                 <blockquote className="text-sm text-zinc-500 italic border-l-2 border-zinc-200 pl-3 leading-relaxed">
@@ -133,8 +171,14 @@ export default async function IncidentPage({ params }: Props) {
         </div>
       )}
 
+      {/* Disclaimer */}
+      <div className="mb-6 bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 text-xs text-zinc-500 leading-relaxed">
+        Information on this page is based on public reporting and on-chain data. Grifter does not
+        assert legal guilt. Evidence status reflects independent verification by Grifter only.
+      </div>
+
       {/* Actions */}
-      <div className="flex gap-3 mt-8">
+      <div className="flex gap-3 mt-4">
         <Link
           href={`/dispute?target=/incidents/${incident.slug}`}
           className="text-sm border border-zinc-300 px-4 py-2 rounded hover:bg-zinc-50"

@@ -39,7 +39,7 @@ export default function AdminPeople() {
 
   const fetchPeople = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/people?page=${page}&limit=${PAGE_SIZE}`);
+    const res = await fetch(`/api/admin/people?page=${page}&limit=${PAGE_SIZE}`);
     const data = await res.json();
     setPeople(data.people ?? []);
     setTotal(data.total ?? 0);

@@ -14,6 +14,19 @@ enum RiskLabel {
   CRITICAL
 }
 
+enum EvidenceStatus {
+  ALLEGED
+  VERIFIED
+  CONTESTED
+}
+
+enum SourceType {
+  EXTERNAL_REPORT
+  ONCHAIN_ANALYSIS
+  ARCHIVED_SCREENSHOT
+  VICTIM_TESTIMONY
+}
+
 enum IncidentType {
   SCAM
   RUG_PULL
@@ -73,10 +86,11 @@ model Person {
   roles       String[]
   socials     Json      @default("{}")
   description String?   @db.Text
-  riskScore   Float     @default(0)
-  riskLabel   RiskLabel @default(LOW)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  riskScore      Float          @default(0)
+  riskLabel      RiskLabel      @default(LOW)
+  evidenceStatus EvidenceStatus @default(ALLEGED)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   incidents IncidentPerson[]
   projects  PersonProject[]
@@ -93,10 +107,11 @@ model Project {
   links             Json      @default("{}")
   contractAddresses String[]
   description       String?   @db.Text
-  riskScore         Float     @default(0)
-  riskLabel         RiskLabel @default(LOW)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  riskScore         Float          @default(0)
+  riskLabel         RiskLabel      @default(LOW)
+  evidenceStatus    EvidenceStatus @default(ALLEGED)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   incidents IncidentProject[]
   people    PersonProject[]
@@ -123,12 +138,14 @@ model Incident {
   narrative       String         @db.Text
   status          IncidentStatus @default(PENDING)
   rejectionReason String?        @db.Text
+  evidenceStatus  EvidenceStatus @default(ALLEGED)
   submitterEmail  String?
   submitterIp     String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   sources          Source[]
+  onChainEvidence  OnChainEvidence[]
   people           IncidentPerson[]
   projects         IncidentProject[]
   responses        Response[]
@@ -160,17 +177,33 @@ model IncidentProject {
 }
 
 model Source {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   url        String
   title      String
-  excerpt    String?  @db.Text
+  excerpt    String?    @db.Text
   archiveUrl String?
   addedBy    String?
+  sourceType SourceType @default(EXTERNAL_REPORT)
   incidentId String
-  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  incident   Incident   @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
 
   @@map("sources")
+}
+
+model OnChainEvidence {
+  id                  String   @id @default(cuid())
+  incidentId          String
+  incident            Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  txHash              String
+  chain               String
+  verifiedAt          DateTime
+  explorerUrl         String
+  externallyConfirmed Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  @@unique([incidentId, txHash])
+  @@map("on_chain_evidence")
 }
 
 model Response {

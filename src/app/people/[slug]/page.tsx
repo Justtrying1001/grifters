@@ -5,6 +5,7 @@ import { RiskLabelBadge } from "@/components/shared/risk-label";
 import { IncidentTypeBadge } from "@/components/shared/incident-type-badge";
 import { ScoreBreakdown } from "@/components/shared/score-breakdown";
 import { DisclaimerFooter } from "@/components/shared/disclaimer-banner";
+import { EvidenceStatusBadge } from "@/components/shared/evidence-status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeRiskScore } from "@/lib/risk-score";
 import { Twitter, Globe, ExternalLink } from "lucide-react";
@@ -23,7 +24,10 @@ export default async function PersonPage({ params }: Props) {
         where: { incident: { status: "APPROVED" } },
         include: {
           incident: {
-            include: { sources: true },
+            include: {
+              sources: true,
+              onChainEvidence: true,
+            },
           },
         },
         orderBy: { incident: { date: "desc" } },
@@ -38,8 +42,12 @@ export default async function PersonPage({ params }: Props) {
     (ip) => ip.incident.status === "APPROVED"
   );
 
+  const verifiedIncidents = approvedIncidents.filter(
+    (ip) => ip.incident.evidenceStatus === "VERIFIED"
+  );
+
   const scoreResult = computeRiskScore(
-    approvedIncidents.map((ip) => ({
+    verifiedIncidents.map((ip) => ({
       type: ip.incident.type,
       date: ip.incident.date,
       sourceCount: ip.incident.sources.length,
@@ -49,13 +57,22 @@ export default async function PersonPage({ params }: Props) {
 
   const socials = person.socials as Record<string, string>;
 
-  // Get approved responses
   const responses = await prisma.response.findMany({
     where: { entityId: person.id, status: "APPROVED" },
   });
 
+  const evidenceStatus = person.evidenceStatus as "ALLEGED" | "VERIFIED" | "CONTESTED";
+  const isContested = evidenceStatus === "CONTESTED";
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Contested banner */}
+      {isContested && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-3 text-sm text-yellow-800">
+          ⚠️ This profile is disputed. A response has been submitted — see below.
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-start justify-between gap-4 mb-4">
@@ -69,6 +86,9 @@ export default async function PersonPage({ params }: Props) {
             {person.roles.length > 0 && (
               <p className="text-sm text-zinc-400 mt-1">{person.roles.join(" · ")}</p>
             )}
+            <div className="mt-2">
+              <EvidenceStatusBadge status={evidenceStatus} size="md" />
+            </div>
           </div>
           <RiskLabelBadge label={person.riskLabel} score={person.riskScore} showScore />
         </div>
@@ -100,8 +120,8 @@ export default async function PersonPage({ params }: Props) {
         </div>
       )}
 
-      {/* Risk Score */}
-      {approvedIncidents.length > 0 && (
+      {/* Risk Score — only shown for VERIFIED profiles */}
+      {evidenceStatus === "VERIFIED" && verifiedIncidents.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 mb-3">Risk Assessment</h2>
           <ScoreBreakdown
@@ -148,15 +168,35 @@ export default async function PersonPage({ params }: Props) {
                 <Card className="hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="pt-4 pb-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <IncidentTypeBadge type={incident.type} />
+                          <EvidenceStatusBadge status={incident.evidenceStatus as "ALLEGED" | "VERIFIED" | "CONTESTED"} />
                           <span className="text-xs text-zinc-400">
                             {new Date(incident.date).toLocaleDateString("en-US", { year: "numeric", month: "long" })}
                           </span>
                         </div>
                         <p className="text-sm text-zinc-700">{incident.summary}</p>
                         <p className="text-xs text-zinc-400 mt-1">{incident.sources.length} source{incident.sources.length !== 1 ? "s" : ""}</p>
+
+                        {/* On-chain evidence for VERIFIED incidents */}
+                        {incident.evidenceStatus === "VERIFIED" && incident.onChainEvidence.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {incident.onChainEvidence.slice(0, 3).map((ev) => (
+                              <a
+                                key={ev.id}
+                                href={ev.explorerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer nofollow"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mr-2"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                {ev.txHash.slice(0, 10)}…{ev.txHash.slice(-6)} ({ev.chain})
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -182,8 +222,14 @@ export default async function PersonPage({ params }: Props) {
         </div>
       )}
 
+      {/* Disclaimer */}
+      <div className="mb-6 bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 text-xs text-zinc-500 leading-relaxed">
+        Information on this page is based on public reporting and on-chain data. Grifter does not
+        assert legal guilt. Evidence status reflects independent verification by Grifter only.
+      </div>
+
       {/* Actions */}
-      <div className="flex gap-3 mt-8">
+      <div className="flex gap-3 mt-4">
         <Link
           href={`/dispute?target=/people/${person.slug}`}
           className="text-sm border border-zinc-300 px-4 py-2 rounded hover:bg-zinc-50"
